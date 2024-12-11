@@ -63,3 +63,9 @@ out/
 
 ### properties ###
 application.properties
+
+#mac
+.DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
