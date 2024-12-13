@@ -12,8 +12,11 @@ public class ChatRoom extends Base {
     private String name;
 
     @Builder
-    public ChatRoom(Long id, User owner, String name) {
-        this.id = id;
+    public ChatRoom(User owner, String name) {
+        if (owner == null || name == null) {
+            throw new IllegalArgumentException("필수 필드는 null일 수 없습니다.");
+        }
+
         this.owner = owner;
         this.name = name;
     }

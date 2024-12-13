@@ -2,6 +2,7 @@ package com.network.sse.chat_message.domain;
 
 import com.network.sse.chat_room.domain.ChatRoom;
 import com.network.sse.common.domain.Base;
+import com.network.sse.common.domain.Status;
 import com.network.sse.user.domain.User;
 import java.time.LocalDateTime;
 import lombok.Builder;
@@ -14,12 +15,14 @@ public class ChatMessage extends Base {
     private User sender;
     private User receiver;
     private String content;
-    private boolean isRemoved;
+    private boolean isRemoved = false;
     private LocalDateTime deletedAt;
 
     @Builder
-    public ChatMessage(Long id, ChatRoom chatRoom, User sender, User receiver, String content, boolean isRemoved, LocalDateTime deletedAt) {
-        this.id = id;
+    public ChatMessage(ChatRoom chatRoom, User sender, User receiver, String content, boolean isRemoved, LocalDateTime deletedAt) {
+        if (chatRoom == null || sender == null || receiver == null || content == null) {
+            throw new IllegalArgumentException("필수 필드는 null일 수 없습니다.");
+        }
         this.chatRoom = chatRoom;
         this.sender = sender;
         this.receiver = receiver;
@@ -31,5 +34,11 @@ public class ChatMessage extends Base {
     // 영속화 후 ID 할당
     public void assignId(Long id) {
         this.id = id;
+    }
+
+    public void remove() {
+        this.isRemoved = true;
+        this.deletedAt = LocalDateTime.now();
+        this.status = Status.INACTIVE;
     }
 }

@@ -35,7 +35,9 @@ public class UserEntity extends BaseEntity {
     public static UserEntity fromModel(User user) {
         UserEntity userEntity = new UserEntity();
 
-        userEntity.id = user.getId();
+        if (user.getId() != null) {
+            userEntity.id = user.getId(); // 이미 id가 부여된 엔티티를 모델로 쓰다가 다시 엔티티로 변경하는 경우, id가 초기화 되는 것 방지
+        }
         userEntity.email = user.getEmail();
         userEntity.password = user.getPassword();
         userEntity.nickname = user.getNickname();
@@ -47,12 +49,14 @@ public class UserEntity extends BaseEntity {
     public User toModel() {
         // Entity를 Model로 변환한다
         User user = User.builder()
-                .id(id)
                 .email(email)
                 .password(password)
                 .nickname(nickname)
                 .profileImage(profileImage)
                 .build();
+
+        // id 할당
+        user.assignId(id);
 
         // Model의 정보를 DB 정보와 동기화한다
         user.syncWithPersistence(getCreatedAt(), getUpdatedAt(), getStatus());

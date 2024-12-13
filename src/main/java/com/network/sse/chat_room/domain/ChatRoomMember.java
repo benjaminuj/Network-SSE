@@ -13,8 +13,10 @@ public class ChatRoomMember extends Base {
     private boolean isExited = false;
 
     @Builder
-    public ChatRoomMember(Long id, ChatRoom room, User member, boolean isExited) {
-        this.id = id;
+    public ChatRoomMember(ChatRoom room, User member, boolean isExited) {
+        if (room == null || member == null) {
+            throw new IllegalArgumentException("필수 필드는 null일 수 없습니다.");
+        }
         this.room = room;
         this.member = member;
         this.isExited = isExited;

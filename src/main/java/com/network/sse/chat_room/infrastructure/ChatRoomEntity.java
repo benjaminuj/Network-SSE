@@ -34,7 +34,9 @@ public class ChatRoomEntity extends BaseEntity {
     public static ChatRoomEntity fromModel(ChatRoom chatRoom) {
         ChatRoomEntity chatRoomEntity = new ChatRoomEntity();
 
-        chatRoomEntity.id = chatRoom.getId();
+        if (chatRoom.getId() != null) {
+            chatRoomEntity.id = chatRoom.getId(); // 이미 id가 부여된 엔티티를 모델로 쓰다가 다시 엔티티로 변경하는 경우, id가 초기화 되는 것 방지
+        }
         chatRoomEntity.owner = UserEntity.fromModel(chatRoom.getOwner());
         chatRoomEntity.name = chatRoom.getName();
 
@@ -44,10 +46,12 @@ public class ChatRoomEntity extends BaseEntity {
     public ChatRoom toModel() {
         // Entity를 Model로 변환한다
         ChatRoom chatRoom = ChatRoom.builder()
-                .id(id)
                 .owner(owner.toModel())
                 .name(name)
                 .build();
+
+        // id 할당
+        chatRoom.assignId(id);
 
         // Model의 정보를 DB 정보와 동기화한다
         chatRoom.syncWithPersistence(getCreatedAt(), getUpdatedAt(), getStatus());

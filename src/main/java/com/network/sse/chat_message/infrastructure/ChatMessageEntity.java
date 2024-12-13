@@ -16,6 +16,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 @Getter
 @Setter
@@ -41,8 +42,8 @@ public class ChatMessageEntity extends BaseEntity {
     @Column(name = "content", nullable = false, length = 2000)
     private String content;
 
-    @Column(name = "isRemoved", nullable = false)
-    private boolean isRemoved;
+    @Column(name = "isRemoved", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private boolean isRemoved = false;
 
     @Column(name = "deletedAt")
     private LocalDateTime deletedAt;
@@ -50,7 +51,9 @@ public class ChatMessageEntity extends BaseEntity {
     public static ChatMessageEntity fromModel(ChatMessage chatMessage) {
         ChatMessageEntity chatMessageEntity = new ChatMessageEntity();
 
-        chatMessageEntity.id = chatMessage.getId();
+        if (chatMessage.getId() != null) {
+            chatMessageEntity.id = chatMessage.getId(); // 이미 id가 부여된 엔티티를 모델로 쓰다가 다시 엔티티로 변경하는 경우, id가 초기화 되는 것 방지
+        }
         chatMessageEntity.chatRoom = ChatRoomEntity.fromModel(chatMessage.getChatRoom());
         chatMessageEntity.sender = UserEntity.fromModel(chatMessage.getSender());
         chatMessageEntity.receiver = UserEntity.fromModel(chatMessage.getReceiver());
@@ -64,7 +67,6 @@ public class ChatMessageEntity extends BaseEntity {
     public ChatMessage toModel() {
         // Entity를 Model로 변환한다
         ChatMessage chatMessage = ChatMessage.builder()
-                .id(id)
                 .chatRoom(chatRoom.toModel())
                 .sender(sender.toModel())
                 .receiver(receiver.toModel())
@@ -72,6 +74,9 @@ public class ChatMessageEntity extends BaseEntity {
                 .isRemoved(isRemoved)
                 .deletedAt(deletedAt)
                 .build();
+
+        // id 할당
+        chatMessage.assignId(id);
 
         // Model의 정보를 DB 정보와 동기화한다
         chatMessage.syncWithPersistence(getCreatedAt(), getUpdatedAt(), getStatus());
