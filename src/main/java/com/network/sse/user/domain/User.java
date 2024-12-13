@@ -13,8 +13,10 @@ public class User extends Base {
     private String profileImage;
 
     @Builder
-    public User(Long id, String email, String password, String nickname, String profileImage) {
-        this.id = id;
+    public User(String email, String password, String nickname, String profileImage) {
+        if (email == null || password == null || nickname == null) {
+            throw new IllegalArgumentException("필수 필드는 null일 수 없습니다.");
+        }
         this.email = email;
         this.password = password;
         this.nickname = nickname;

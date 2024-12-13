@@ -32,13 +32,15 @@ public class ChatRoomMemberEntity extends BaseEntity {
     @JoinColumn(name = "memberId", nullable = false)
     private UserEntity member;
 
-    @Column(name = "isExited", nullable = false)
+    @Column(name = "isExited", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
     private boolean isExited = false;
 
     public static ChatRoomMemberEntity fromModel(ChatRoomMember chatRoomMember) {
         ChatRoomMemberEntity chatRoomMemberEntity = new ChatRoomMemberEntity();
 
-        chatRoomMemberEntity.id = chatRoomMember.getId();
+        if (chatRoomMember.getId() != null) {
+            chatRoomMemberEntity.id = chatRoomMember.getId(); // 이미 id가 부여된 엔티티를 모델로 쓰다가 다시 엔티티로 변경하는 경우, id가 초기화 되는 것 방지
+        }
         chatRoomMemberEntity.room = ChatRoomEntity.fromModel(chatRoomMember.getRoom());
         chatRoomMemberEntity.member = UserEntity.fromModel(chatRoomMember.getMember());
         chatRoomMemberEntity.isExited = chatRoomMember.isExited();
@@ -49,11 +51,13 @@ public class ChatRoomMemberEntity extends BaseEntity {
     public ChatRoomMember toModel() {
         // Entity를 Model로 변환한다
         ChatRoomMember chatRoomMember = ChatRoomMember.builder()
-                .id(id)
                 .room(room.toModel())
                 .member(member.toModel())
                 .isExited(isExited)
                 .build();
+
+        // id 할당
+        chatRoomMember.assignId(id);
 
         // Model의 정보를 DB 정보와 동기화한다
         chatRoomMember.syncWithPersistence(getCreatedAt(), getUpdatedAt(), getStatus());
