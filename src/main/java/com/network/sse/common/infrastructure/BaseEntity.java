@@ -23,6 +23,6 @@ public class BaseEntity {
     @Column(name = "updatedAt", nullable = false)
     private LocalDateTime updatedAt;
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(16)", length = 16)
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(16) DEFAULT 'ACTIVE'", length = 16)
     protected Status status = Status.ACTIVE;
 }
