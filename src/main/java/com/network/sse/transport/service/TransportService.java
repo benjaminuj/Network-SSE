@@ -80,6 +80,7 @@ public class TransportService {
         Map<String, Object> events = emitterRepository.findAllEventCacheStartWithId(emitterIdPrefix);
 
         events.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
                 .filter(entry -> lastEventId.compareTo(entry.getKey()) < 0)
                 .forEach(entry -> {
                     ChatMessage chatMessage = (ChatMessage) entry.getValue();
