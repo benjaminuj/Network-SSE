@@ -4,6 +4,7 @@ import com.network.sse.chat_message.domain.ChatMessage;
 import com.network.sse.transport.infrastructure.EmitterRepository;
 import java.io.IOException;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -11,7 +12,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Service
 @RequiredArgsConstructor
 public class TransportService {
-    private static final Long SSE_TIMEOUT = 1000 * 10L;
+    private static final Long SSE_TIMEOUT = 1000 * 20L;
     private final EmitterRepository emitterRepository;
 
     /**
@@ -44,6 +45,10 @@ public class TransportService {
             sendToClient(emitter, emitterId, "EventStream Created... [chatRoomId=%d userId=%d]".formatted(chatRoomId, userId));
         }
 
+        if (!lastEventId.isEmpty()) {
+            sendLostData(lastEventId, emitterIdPrefix, emitter);
+        }
+
         return emitter;
     }
 
@@ -66,6 +71,24 @@ public class TransportService {
     }
 
     /**
+     * 미수신 데이터 전송
+     * @param lastEventId 마지막으로 수신한 이벤트 id
+     * @param emitterIdPrefix SseEmitter id 접두사 (채팅방id_유저id)
+     * @param emitter SseEmitter 객체
+     */
+    private void sendLostData(String lastEventId, String emitterIdPrefix, SseEmitter emitter) {
+        Map<String, Object> events = emitterRepository.findAllEventCacheStartWithId(emitterIdPrefix);
+
+        events.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .filter(entry -> lastEventId.compareTo(entry.getKey()) < 0)
+                .forEach(entry -> {
+                    ChatMessage chatMessage = (ChatMessage) entry.getValue();
+                    sendToClient(emitter, entry.getKey(), chatMessage.getContent());
+                });
+    }
+
+    /**
      * sse로 실시간 채팅 메시지 전송
      * @param chatRoomId 채팅방 id
      * @param receiverId 수신자 user id
@@ -78,11 +101,28 @@ public class TransportService {
 
         String eventId = emitterIdPrefix + "_" + System.currentTimeMillis();
 
+        // 데이터 유실에 대비해 캐시에 데이터 저장
+        emitterRepository.saveEventCache(eventId, chatMessage);
+
         sseEmitters.forEach(
                 (key, emitter) -> {
                     // 데이터 전송
                     sendToClient(emitter, eventId, chatMessage.getContent());
                 }
         );
+    }
+
+    /*모든 SseEmitter 조회*/
+    public Map<String, String> getAllEmitters() {
+        return emitterRepository.getAllEmitters().entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().toString()
+                ));
+    }
+
+    /*모든 event cache 조회*/
+    public Map<String, Object> getAllEventCache() {
+        return emitterRepository.getAllEventCache();
     }
 }
