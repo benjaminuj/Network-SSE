@@ -52,16 +52,19 @@ public class TransportService {
         // 연결 종료 시
         emitter.onCompletion(() -> {
             log.info("SSE 연결 종료 (모든 종료 사유 포함): emitterId: " + emitterId);
+            emitter.complete(); // HTTP 스트림 종료
             emitterRepository.deleteEmitterById(emitterId); // 객체 삭제
         });
         // 타임아웃 발생 시
         emitter.onTimeout(() -> {
             log.warn("SSE 타임아웃 발생: emitterId: " + emitterId);
+            emitter.complete(); // HTTP 스트림 종료
             emitterRepository.deleteEmitterById(emitterId); // 객체 삭제
         });
         // 에러 발생 시
         emitter.onError((e) -> {
             log.error("SSE 연결 중 오류 발생: " + e.getMessage() + ", emitterId: " + emitterId);
+            emitter.completeWithError(e); // HTTP 스트림 종료
             emitterRepository.deleteEmitterById(emitterId); // 객체 삭제
         });
 
@@ -94,9 +97,11 @@ public class TransportService {
                     .data(data));
         } catch (IOException | IllegalStateException exception) {
             log.warn("SSE send() 실패: 클라이언트와의 연결이 이미 종료되었을 가능성이 있습니다. event id: " + eventId);
+            emitter.completeWithError(exception);
             emitterRepository.deleteEmitterById(emitterId);
         } catch (Exception exception) {
             log.error("예상치 못한 오류 발생: " + exception.getMessage());
+            emitter.completeWithError(exception);
             emitterRepository.deleteEmitterById(emitterId);
             throw new RuntimeException("SSE 연결에 알 수 없는 오류가 발생했습니다!", exception);
         }
