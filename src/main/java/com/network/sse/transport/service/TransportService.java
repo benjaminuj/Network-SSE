@@ -14,7 +14,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 @Slf4j
 public class TransportService {
-    private static final Long SSE_TIMEOUT = 1000 * 5L;
+    private static final Long SSE_TIMEOUT = 1000 * 20L;
     private final EmitterRepository emitterRepository;
 
     /**
