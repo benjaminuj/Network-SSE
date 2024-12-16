@@ -6,7 +6,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public interface EmitterRepository {
     SseEmitter save(String emitterId, SseEmitter sseEmitter);
     Map<String, SseEmitter> findAllEmitterStartWithId(String id);
-    void deleteById(String emitterId);
+    void deleteEmitterById(String emitterId);
     void saveEventCache(String eventCacheId, Object event);
     Map<String, Object> findAllEventCacheStartWithId(String id);
     void deleteEventCacheById(String eventCacheId);
