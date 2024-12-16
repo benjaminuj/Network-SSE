@@ -6,13 +6,15 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TransportService {
-    private static final Long SSE_TIMEOUT = 1000 * 20L;
+    private static final Long SSE_TIMEOUT = 1000 * 5L;
     private final EmitterRepository emitterRepository;
 
     /**
@@ -23,6 +25,16 @@ public class TransportService {
      */
     private String createEmitterIdPrefix(Long chatRoomId, Long userId) {
         return chatRoomId + "_" + userId;
+    }
+
+    /**
+     * emitter id에서 접두사 추출
+     * @param emitterId SseEmitter Id
+     * @return emitterId 접두사
+     */
+    private String getEmitterIdPrefix(String emitterId) {
+        int prefixEndIdx = emitterId.lastIndexOf("_");
+        return emitterId.substring(0, prefixEndIdx);
     }
 
     /**
@@ -37,16 +49,31 @@ public class TransportService {
         String emitterId =  emitterIdPrefix + "_" + System.currentTimeMillis();
         SseEmitter emitter = emitterRepository.save(emitterId, new SseEmitter(SSE_TIMEOUT));
 
-        emitter.onCompletion(() -> emitterRepository.deleteById(emitterId));
-        emitter.onTimeout(() -> emitterRepository.deleteById(emitterId));
+        // 연결 종료 시
+        emitter.onCompletion(() -> {
+            log.info("SSE 연결 종료 (모든 종료 사유 포함): emitterId: " + emitterId);
+            emitterRepository.deleteEmitterById(emitterId); // 객체 삭제
+        });
+        // 타임아웃 발생 시
+        emitter.onTimeout(() -> {
+            log.warn("SSE 타임아웃 발생: emitterId: " + emitterId);
+            emitterRepository.deleteEmitterById(emitterId); // 객체 삭제
+        });
+        // 에러 발생 시
+        emitter.onError((e) -> {
+            log.error("SSE 연결 중 오류 발생: " + e.getMessage() + ", emitterId: " + emitterId);
+            emitterRepository.deleteEmitterById(emitterId); // 객체 삭제
+        });
 
+        // 503 error 방지 차원에서 더미 이벤트 전송
         if (lastEventId == null || lastEventId.isEmpty()) {
-            // 503 error 방지 차원에서 더미 이벤트 전송
-            sendToClient(emitter, emitterId, "EventStream Created... [chatRoomId=%d userId=%d]".formatted(chatRoomId, userId));
+            String startEventId = emitterIdPrefix+"_EventStreamCreated";
+            sendToClient(emitter, emitterId, startEventId, "EventStream Created... [chatRoomId=%d userId=%d]".formatted(chatRoomId, userId));
         }
 
+        // 미수신 데이터 전송
         if (!lastEventId.isEmpty()) {
-            sendLostData(lastEventId, emitterIdPrefix, emitter);
+            sendLostData(lastEventId, emitterId, emitter);
         }
 
         return emitter;
@@ -55,36 +82,42 @@ public class TransportService {
     /**
      * 데이터 전송
      * @param emitter 사용할 SseEmitter 객체
-     * @param id SseEmitter id
+     * @param emitterId SseEmitter를 관리하는 id
+     * @param eventId 데이터 id
      * @param data 전송할 데이터 (채팅 메시지...)
      */
-    private void sendToClient(SseEmitter emitter, String id, Object data) {
+    private void sendToClient(SseEmitter emitter, String emitterId, String eventId, Object data) {
         try {
             emitter.send(SseEmitter.event()
-                    .id(id)
+                    .id(eventId)
                     .name("chat")
                     .data(data));
-        } catch (IOException exception) {
-            emitterRepository.deleteById(id);
-            throw new RuntimeException("SSE 연결에 오류가 발생했습니다!");
+        } catch (IOException | IllegalStateException exception) {
+            log.warn("SSE send() 실패: 클라이언트와의 연결이 이미 종료되었을 가능성이 있습니다. event id: " + eventId);
+            emitterRepository.deleteEmitterById(emitterId);
+        } catch (Exception exception) {
+            log.error("예상치 못한 오류 발생: " + exception.getMessage());
+            emitterRepository.deleteEmitterById(emitterId);
+            throw new RuntimeException("SSE 연결에 알 수 없는 오류가 발생했습니다!", exception);
         }
     }
 
     /**
      * 미수신 데이터 전송
      * @param lastEventId 마지막으로 수신한 이벤트 id
-     * @param emitterIdPrefix SseEmitter id 접두사 (채팅방id_유저id)
+     * @param emitterId SseEmitter id
      * @param emitter SseEmitter 객체
      */
-    private void sendLostData(String lastEventId, String emitterIdPrefix, SseEmitter emitter) {
+    private void sendLostData(String lastEventId, String emitterId, SseEmitter emitter) {
+        String emitterIdPrefix = getEmitterIdPrefix(emitterId);
         Map<String, Object> events = emitterRepository.findAllEventCacheStartWithId(emitterIdPrefix);
 
         events.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
+                .sorted(Map.Entry.comparingByKey()) // 전송 순서 보장
                 .filter(entry -> lastEventId.compareTo(entry.getKey()) < 0)
                 .forEach(entry -> {
                     ChatMessage chatMessage = (ChatMessage) entry.getValue();
-                    sendToClient(emitter, entry.getKey(), chatMessage.getContent());
+                    sendToClient(emitter, emitterId, entry.getKey(), chatMessage.getContent());
                 });
     }
 
@@ -104,10 +137,10 @@ public class TransportService {
         // 데이터 유실에 대비해 캐시에 데이터 저장
         emitterRepository.saveEventCache(eventId, chatMessage);
 
+        // 데이터 전송
         sseEmitters.forEach(
                 (key, emitter) -> {
-                    // 데이터 전송
-                    sendToClient(emitter, eventId, chatMessage.getContent());
+                    sendToClient(emitter, key, eventId, chatMessage.getContent());
                 }
         );
     }
